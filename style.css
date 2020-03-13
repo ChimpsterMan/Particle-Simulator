@@ -1,0 +1,19 @@
+* {
+  margin: 0px;
+  padding: 0px;
+}
+
+html {
+  background-color: "#272121";
+}
+
+body {
+  background-color: "#272121";
+  margin:auto;
+}
+
+canvas {
+  border: solid black 2px;
+  display:block;
+  margin: auto;
+}
