@@ -11,7 +11,7 @@ var mainLoop;
 function setup(){
   particles = [];
 
-  for (var i = 0; i < 10; i++){
+  for (var i = 0; i < 2; i++){
     particles.push(new particle(i*(canvas.width/10) + 30, 100, 30))
   }
 

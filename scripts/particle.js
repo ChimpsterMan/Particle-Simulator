@@ -5,7 +5,7 @@ function particle(x, y, r, m = 1) {
   this.y = y;
   this.radius = r;
   this.mass = m;
-  this.velocity = new vector(0,0);
+  this.velocity = new vector(0.2,0);
   this.elasticity = 0.8;
   this.forces = [];
   this.forces.push(new force(new vector(0, 9.8/50)));
@@ -92,29 +92,9 @@ function collisionCheck(particles, boxWidth, boxHeight){
   //collsion comparisons for each particle
   for (var i = 0; i < particles.length; i++) {
   //wall collisions
-    //right
-    if (particles[i].x + particles[i].radius > boxWidth) {
-      particles[i].forces.push(new force(new vector(-(particles[i].velocity.x + particles[i].velocity.x * particles[i].elasticity), 0), "hard"));
-      particles[i].x = boxWidth - particles[i].radius;
-    }
-    //left
-    if (particles[i].x - particles[i].radius < 0) {
-      particles[i].forces.push(new force(new vector((particles[i].velocity.x + particles[i].velocity.x * particles[i].elasticity), 0), "hard"));
-      particles[i].x = 0 + particles[i].radius;
-    }
-    //down
-    if (particles[i].y + particles[i].radius > boxHeight) {
-      particles[i].forces.push(new force(new vector(0,-(particles[i].velocity.y + particles[i].velocity.y * particles[i].elasticity)), "hard"));
-      particles[i].y = boxHeight - particles[i].radius;
-      console.log("collide");
-    }
-    //up
-    if (particles[i].y - particles[i].radius < 0) {
-      particles[i].forces.push(new force(new vector(0,(particles[i].velocity.y + particles[i].velocity.y * particles[i].elasticity)), "hard"));
-      particles[i].y = 0 + particles[i].radius;
-    }
+    particles[i] = wallCollisionCheck(particles[i],boxWidth,boxHeight);
   //particle collisions
-   else if (particleCollisionsEnabled){
+   if (particleCollisionsEnabled){
       var xValues = [0];
       var yValues = [0];
 
@@ -149,7 +129,7 @@ function collisionCheck(particles, boxWidth, boxHeight){
 
       //proccess the particles found
       for (var j = 0; j < collidedParticles.length; j++) {
-        processParticleCollision(particles, i, collidedParticles[j]);
+        processParticleCollision(particles, i, collidedParticles[j], boxWidth, boxHeight);
       }
     }
   }
@@ -164,7 +144,32 @@ function particleCollisionCheck(particle1, particle2){
   }
 }
 
-function processParticleCollision(particles, p1, p2){
+function wallCollisionCheck(particle,boxWidth,boxHeight){
+  //right
+  if (particle.x + particle.radius > boxWidth) {
+    particle.forces.push(new force(new vector(-Math.abs(particle.velocity.x + particle.velocity.x * particle.elasticity), 0), "hard"));
+    particle.x = boxWidth - particle.radius;
+  }
+  //left
+  if (particle.x - particle.radius < 0) {
+    particle.forces.push(new force(new vector(Math.abs(particle.velocity.x + particle.velocity.x * particle.elasticity), 0), "hard"));
+    particle.x = 0 + particle.radius;
+  }
+  //down
+  if (particle.y + particle.radius > boxHeight) {
+    particle.forces.push(new force(new vector(0,-Math.abs(particle.velocity.y + particle.velocity.y * particle.elasticity)), "hard"));
+    particle.y = boxHeight - particle.radius;
+  }
+  //up
+  if (particle.y - particle.radius < 0) {
+    particle.forces.push(new force(new vector(0,Math.abs(particle.velocity.y + particle.velocity.y * particle.elasticity)), "hard"));
+    particle.y = 0 + particle.radius;
+  }
+
+  return particle;
+}
+
+function processParticleCollision(particles, p1, p2, boxWidth, boxHeight){
 
   var p1Force = new vector(0,0);
   var p2Force = new vector(0,0);
@@ -181,4 +186,18 @@ function processParticleCollision(particles, p1, p2){
 
   particles[p1].addForce(new force(p1Force, "hard"));
   particles[p2].addForce(new force(p2Force, "hard"));
+
+  //backtrack each particle so that they are proper distance away from eachother
+  var count = 0;
+  while (particleCollisionCheck(particles[p1],particles[p2])){
+    console.log(count += 1);
+    var accuracy = 1;
+    particles[p1].x -= particles[p1].velocity.x/accuracy;
+    particles[p1].y -= particles[p1].velocity.y/accuracy;
+    particles[p1] = wallCollisionCheck(particles[p1],boxWidth,boxHeight);
+
+    particles[p2].x -= particles[p2].velocity.x/accuracy;
+    particles[p2].y -= particles[p2].velocity.y/accuracy;
+    particles[p2] = wallCollisionCheck(particles[p2],boxWidth,boxHeight);
+  }
 }
