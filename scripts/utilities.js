@@ -8,5 +8,5 @@ function vAdd(vector1, vector2){
 }
 
 function pythagorean(v1){
-    return Math.sqrt(Math.pow(v1.x,2) + Math.pow(v1.y,2));
+    return Math.sqrt(v1.x*v1.x + v1.y*v1.y);
 }
