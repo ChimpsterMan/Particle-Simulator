@@ -8,8 +8,9 @@ function particle(x, y, r, m = 1) {
   this.radius = r;
   this.mass = m;
   this.velocity = new vector(0,0);
-  this.elasticity = 0.8;
+  this.elasticity = 0.3;
   this.forces = [];
+  this.collidedParticles = [];
   this.forces.push(new force(new vector(0, 9.8/fps)));
 
   //status check variables for optimization
@@ -49,10 +50,8 @@ function particle(x, y, r, m = 1) {
     this.velocity.x += calculatedForces.x;
     this.velocity.y += calculatedForces.y;
 
-    this.x += this.velocity.x * deltaTime;
-    this.y += this.velocity.y * deltaTime;
-
     //position correction
+      /*
     if (this.x - this.radius < 0){
         this.x = this.radius-1;
     }
@@ -65,6 +64,8 @@ function particle(x, y, r, m = 1) {
     if (this.y + this.radius >= height){
         this.y = height-this.radius+1;
     }
+    */
+
 
     //cllean up variables for optimization
     //stop colliding if not moving
@@ -76,21 +77,7 @@ function particle(x, y, r, m = 1) {
   }
 }
 
-function collisionCheck(particles, boxWidth, boxHeight){
-    //position correction
-    if (this.x - this.radius < 0){
-        this.x = this.radius-1;
-    }
-    if (this.y - this.radius < 0){
-        this.y = this.radius-1;
-    }
-    if (this.x + this.radius >= width){
-        this.x = width-this.radius+1;
-    }
-    if (this.y + this.radius >= height){
-        this.y = height-this.radius+1;
-    }
-
+function collisionCheck(particles, deltaTime, boxWidth, boxHeight){
   //ordering the cells array for optimization
   var boxSize;
   if (boxWidth > boxHeight){
@@ -113,6 +100,22 @@ function collisionCheck(particles, boxWidth, boxHeight){
 
   //add each particle to the new array
   for (var i = 0; i < particles.length; i++) {
+      //position correction
+      if (particles[i].x - particles[i].radius < 0){
+          particles[i].x = particles[i].radius-1;
+      }
+      if (particles[i].y - particles[i].radius < 0){
+          particles[i].y = particles[i].radius-1;
+      }
+      if (particles[i].x + particles[i].radius >= width){
+          particles[i].x = boxWidth-particles[i].radius+1;
+      }
+      if (particles[i].y + particles[i].radius >= height){
+          particles[i].y = boxHeight-particles[i].radius+1;
+      }
+
+      //reset collision data
+      particles[i].collidedParticles = [];
     //console.log(particles);
     //console.log(Math.floor(particles[i].y/cellSize) + " " + Math.floor(particles[i].x/cellSize));
     //console.log(cells[Math.floor(particles[i].y/cellSize)]);
@@ -121,8 +124,14 @@ function collisionCheck(particles, boxWidth, boxHeight){
 
   //collsion comparisons for each particle
   for (var i = 0; i < particles.length; i++) {
+      //console.log(particles[i].velocity);
+
+      particles[i] = wallCollisionCheck(particles[i],boxWidth,boxHeight);
+
+      //add velocities
+      particles[i].x += particles[i].velocity.x * deltaTime;
+      particles[i].y += particles[i].velocity.y * deltaTime;
   //wall collisions
-    particles[i] = wallCollisionCheck(particles[i],boxWidth,boxHeight);
   //particle collisions
    if (particleCollisionsEnabled){
       var xValues = [0];
@@ -148,13 +157,24 @@ function collisionCheck(particles, boxWidth, boxHeight){
       //console.log(yValues);
       var collidedParticles = [];
       //check all quadrants around
+       //console.log(yValues + " " + xValues);
       for (var y = 0; y < yValues.length; y++){
         for (var x = 0; x < xValues.length; x++){
           //console.log(cells[Math.floor(particles[i].y/cellSize) + yValues[y]][Math.floor(particles[i].x/cellSize) + xValues[x]]);
           var particlesInCell = cells[Math.floor(particles[i].y/cellSize) + yValues[y]][Math.floor(particles[i].x/cellSize) + xValues[x]];
           for (var j = 0; j < particlesInCell.length; j++){
             if (particlesInCell[j] != i && particleCollisionCheck(particles[i], particles[particlesInCell[j]])){
-              collidedParticles.push(particlesInCell[j]);
+                var collided = false;
+                for (var k = 0; k < particles[i].collidedParticles.length; k++){
+                    if (particlesInCell[j] == particles[i].collidedParticles[k]){
+                        //console.log(particlesInCell[j] + " " + particles[i].collidedParticles)
+                        collided = true;
+                        break;
+                    }
+                }
+                if (collided == false) {
+                    collidedParticles.push(particlesInCell[j]);
+                }
             }
           }
         }
@@ -166,15 +186,20 @@ function collisionCheck(particles, boxWidth, boxHeight){
       }
     }
   }
+
+  return particles;
 }
 
 //check collision between individual particles
 function particleCollisionCheck(particle1, particle2){
+    /*
   particle1.x += particle1.velocity.x;
   particle1.y += particle1.velocity.y;
 
   particle2.x += particle2.velocity.x;
   particle2.y += particle2.velocity.y;
+
+     */
 
   //console.log(Math.sqrt((particle1.x-particle2.x)*(particle1.x-particle2.x) + (particle1.y-particle2.y)*(particle1.y-particle2.y)) + " " + particle1.radius*2);
 
@@ -215,28 +240,61 @@ function processParticleCollision(particles, p1, p2, boxWidth, boxHeight){
   var p2Force = new vector(0,0);
   var p1Speed = pythagorean(particles[p1].velocity);
   var p2Speed = pythagorean(particles[p2].velocity);
-  var phy1 = -Math.atan2(particles[p2].y-particles[p1].y,particles[p2].x-particles[p1].x)
+  //backtrack
+    particles[p1].x -= particles[p1].velocity.x*1;
+    particles[p1].y -= particles[p1].velocity.y*1;
+
+    particles[p2].x -= particles[p2].velocity.x*1;
+    particles[p2].y -= particles[p2].velocity.y*1;
+
+  //non angular collision formula
+    var dotProduct = (particles[p1].velocity.x-particles[p2].velocity.x)*(particles[p1].x-particles[p2].x) + (particles[p1].velocity.y-particles[p2].velocity.y)*(particles[p1].y-particles[p2].y);
+    var pyth = Math.pow(particles[p2].x-particles[p1].x,2) + Math.pow(particles[p2].y-particles[p1].y,2);
+
+    p1Force.x = -0.5*(particles[p1].velocity.x - (2*particles[p2].mass/(particles[p1].mass + particles[p2].mass)) * ((dotProduct)/(pyth)) * (particles[p2].x - particles[p1].x));
+    p1Force.y = -0.5*(particles[p1].velocity.y - (2*particles[p2].mass/(particles[p1].mass + particles[p2].mass)) * ((dotProduct)/(pyth)) * (particles[p2].y - particles[p1].y));
+
+    dotProduct = (particles[p2].velocity.x-particles[p1].velocity.x)*(particles[p2].x-particles[p1].x) + (particles[p2].velocity.y-particles[p1].velocity.y)*(particles[p2].y-particles[p1].y);
+    pyth = Math.pow(particles[p1].x-particles[p2].x,2) + Math.pow(particles[p1].y-particles[p2].y,2);
+    p2Force.x = -0.5*(particles[p2].velocity.x - (2*particles[p1].mass/(particles[p2].mass + particles[p1].mass)) * ((dotProduct)/(pyth)) * (particles[p1].x - particles[p2].x));
+    p2Force.y = -0.5*(particles[p2].velocity.y - (2*particles[p1].mass/(particles[p2].mass + particles[p1].mass)) * ((dotProduct)/(pyth)) * (particles[p1].y - particles[p2].y));
+
+
+    //angular solution
+  /*var phy1 = -Math.atan2(particles[p2].y-particles[p1].y,particles[p2].x-particles[p1].x)
   var phy2 = -Math.atan2(particles[p1].y-particles[p2].y,particles[p1].x-particles[p2].x)
   //var phy1 = Math.atan((particles[p2].y-particles[p1].y)/(particles[p2].x-particles[p1].x))
   //var phy2 = Math.atan((particles[p1].y-particles[p2].y)/(particles[p1].x-particles[p2].x))
   //((particles[p1].elasticity+particles[p2].elasticity)/2)
-  p1Force.x = ((p1Speed*Math.cos(particles[p1].getAngle()-phy1) * (particles[p1].mass-particles[p2].mass) + 2 * particles[p2].mass*p2Speed*Math.cos(particles[p2].getAngle()-phy1)) / (particles[p1].mass + particles[p2].mass)) * Math.cos(phy1)+p1Speed*Math.sin(particles[p1].getAngle()-phy1)*Math.cos(phy1+Math.PI/2);
-  p1Force.y = ((p1Speed*Math.cos(particles[p1].getAngle()-phy1) * (particles[p1].mass-particles[p2].mass) + 2 * particles[p2].mass*p2Speed*Math.cos(particles[p2].getAngle()-phy1)) / (particles[p1].mass + particles[p2].mass)) * Math.sin(phy1)+p1Speed*Math.sin(particles[p1].getAngle()-phy1)*Math.sin(phy1+Math.PI/2);
+  p1Force.x = -((p1Speed*Math.cos(particles[p1].getAngle()-phy1) * (particles[p1].mass-particles[p2].mass) + 2 * particles[p2].mass*p2Speed*Math.cos(particles[p2].getAngle()-phy1)) / (particles[p1].mass + particles[p2].mass)) * Math.cos(phy1)+p1Speed*Math.sin(particles[p1].getAngle()-phy1)*Math.cos(phy1+Math.PI/2);
+  p1Force.y = -((p1Speed*Math.cos(particles[p1].getAngle()-phy1) * (particles[p1].mass-particles[p2].mass) + 2 * particles[p2].mass*p2Speed*Math.cos(particles[p2].getAngle()-phy1)) / (particles[p1].mass + particles[p2].mass)) * Math.sin(phy1)+p1Speed*Math.sin(particles[p1].getAngle()-phy1)*Math.sin(phy1+Math.PI/2);
 
   p2Force.x = ((p2Speed*Math.cos(particles[p2].getAngle()-phy2) * (particles[p2].mass-particles[p1].mass) + 2 * particles[p1].mass*p1Speed*Math.cos(particles[p1].getAngle()-phy2)) / (particles[p2].mass + particles[p1].mass)) * Math.cos(phy2)+p2Speed*Math.sin(particles[p2].getAngle()-phy2)*Math.cos(phy2+Math.PI/2);
   p2Force.y = ((p2Speed*Math.cos(particles[p2].getAngle()-phy2) * (particles[p2].mass-particles[p1].mass) + 2 * particles[p1].mass*p1Speed*Math.cos(particles[p1].getAngle()-phy2)) / (particles[p2].mass + particles[p1].mass)) * Math.sin(phy2)+p2Speed*Math.sin(particles[p2].getAngle()-phy2)*Math.sin(phy2+Math.PI/2);
 
+   */
   particles[p1].addForce(new force(p1Force, "hard"));
   particles[p2].addForce(new force(p2Force, "hard"));
 
   //backtrack each particle so that they are proper distance away from eachother
-    particles[p1].x -= particles[p1].velocity.x;
-    particles[p1].y -= particles[p1].velocity.y;
 
-    particles[p2].x -= particles[p2].velocity.x;
-    particles[p2].y -= particles[p2].velocity.y;
 
-  /*
+    //2nd attempt based on position not velocity
+    var diff = new vector(particles[p2].x-particles[p1].x,particles[p2].y-particles[p1].y);
+    var h = pythagorean(diff);
+    var offsetRatio = new vector(diff.x/h,diff.y/h);
+    particles[p1].x -= ((particles[p1].radius + particles[p2].radius)-h) * offsetRatio.x + 1;
+    particles[p1].y -= ((particles[p1].radius + particles[p2].radius)-h) * offsetRatio.y + 1;
+    //console.log(pythagorean(new vector(particles[p2].x-particles[p1].x,particles[p2].y-particles[p1].y)));
+
+    //particles[p1] = wallCollisionCheck(particles[i],boxWidth,boxHeight);
+
+    //account for particles already calculated
+    particles[p2].collidedParticles.push(p1);
+
+    console.log("collided: " + p1 + " " + p2);
+
+    /*
   var count = 0;
   while (particleCollisionCheck(particles[p1],particles[p2])){
     console.log(count += 1);
